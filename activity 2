@@ -1,0 +1,49 @@
+!pip install -q groq
+import os
+from google.colab import userdata
+import gradio as gr
+from groq import Groq
+client = Groq(api_key=userdata.get("GROQ_API_KEY"))
+DEFAULT_SYSTEM_PROMPT='''you are a football expert with experience in every aspect of 
+football rules and regulations '''
+def respond(message,history,system_prompt,temperature):
+  messages=[{"role":"system","content":system_prompt}]
+  for turn in history:
+    messages.append({"role":turn["role"],"content":turn["content"]})
+  messages.append({"role":"user","content":message})
+  stream =client.chat.completions.create(
+    model="llama-3.1-8b-instant",
+    messages=messages,
+    temperature=0.7,
+    stream=True,
+    )
+  #return response.choices[0].message.content
+  partial=""
+  for chunk in stream:
+    partial+=chunk.choices[0].delta.content or ""
+    yield partial 
+additional_inputs = [
+gr.Textbox(
+  value=DEFAULT_SYSTEM_PROMPT,
+  label="System Prompt Persona",
+  placeholder="Modify how the football expert behaves...",
+  lines=3
+),
+gr.Slider(
+  minimum=0.0,
+  maximum=2.0,
+  value=0.7,
+  step=0.1,
+  label="Creativity / Temperature",
+  info="Lower values keep rules precise. Higher values make the expert creative."
+)
+]
+demo = gr.ChatInterface(
+    fn=respond,
+    type="messages",
+    title="Football Expert AI Chatbot",
+    description="Ask anything about match rules, history, or football regulations. Adjust the identity in the settings block below.",
+    additional_inputs=additional_inputs,
+    additional_inputs_accordion=gr.Accordion(label="Expert Persona & Parameters", open=True)
+)
+demo.launch(debug=True)
